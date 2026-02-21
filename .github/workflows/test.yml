@@ -1,0 +1,81 @@
+name: test.yml
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [
+
+          "windows-py311",
+          "windows-py312",
+          "windows-py313",
+
+          "ubuntu-py311",
+          "ubuntu-py312",
+          "ubuntu-py313",
+
+          "macos-py311",
+          "macos-py312",
+          "macos-py313",
+        ]
+
+        include:
+          - name: "windows-py311"
+            python: "3.11"
+            os: windows-latest
+          - name: "windows-py312"
+            python: "3.12"
+            os: windows-latest
+          - name: "windows-py313"
+            python: "3.13"
+            os: windows-latest
+
+          - name: "ubuntu-py311"
+            python: "3.11"
+            os: ubuntu-latest
+          - name: "ubuntu-py312"
+            python: "3.12"
+            os: ubuntu-latest
+          - name: "ubuntu-py313"
+            python: "3.13"
+            os: ubuntu-latest
+
+          - name: "macos-py311"
+            python: "3.11"
+            os: macos-latest
+          - name: "macos-py312"
+            python: "3.12"
+            os: macos-latest
+          - name: "macos-py313"
+            python: "3.13"
+            os: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Install package
+        run: |
+          pip install .
+      - name: Test
+        run: "balder --working-dir tests --junit=result.xml"
