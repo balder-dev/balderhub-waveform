@@ -60,7 +60,7 @@ class BaseNonPeriodicWaveform(AbstractWaveform, ABC):
         return (len(self.data) - 1) * self._delta_time_sec
 
     def get_data_in_volts(self) -> np.ndarray:
-        return self.data * float(self._multiplier_amplitude_volt) + self._offset_vdc
+        return self.data * float(self._multiplier_amplitude_volt) - self._offset_vdc
 
     def get_resampled_version(self, interval_sec: float) -> BaseNonPeriodicWaveform:
         # pylint: disable-next=import-outside-toplevel
