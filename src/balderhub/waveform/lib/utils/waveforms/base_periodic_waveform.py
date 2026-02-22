@@ -161,9 +161,6 @@ class BasePeriodicWaveform(AbstractWaveform, ABC):
                 max_allowed_rmse=max_allowed_rmse,
                 ignore_phase=ignore_phase
             )
-        # have the same type -> compare each other directly
-        if self.frequency_hz != with_waveform.frequency_hz:
-            return False
 
         if ignore_phase:
             return self.get_phase_difference_to(with_waveform, max_allowed_rmse=max_allowed_rmse) is not None
@@ -171,6 +168,9 @@ class BasePeriodicWaveform(AbstractWaveform, ABC):
         common_delta_time = max(self.delta_time_sec, with_waveform.delta_time_sec)
         self_signal = self.get_resampled_version(common_delta_time).get_data_in_volts()
         other_signal = with_waveform.get_resampled_version(common_delta_time).get_data_in_volts()
+
+        if len(self_signal) != len(other_signal):
+            return False
 
         rmse = np.sqrt(np.mean((self_signal - other_signal) ** 2))
         return rmse < max_allowed_rmse
