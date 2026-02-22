@@ -87,45 +87,76 @@ class BaseNonPeriodicWaveform(AbstractWaveform, ABC):
 
         :return: a new PERIOD waveform that describes the periodic pattern within this signal
         """
-        # TODO rework
-        self_data = self.data
-        # do autocorrelation and try to find periodic signal
-        signal_detrended = detrend(self_data)
-        auto_corr = correlate(signal_detrended, signal_detrended, mode='full')
-        auto_corr = auto_corr[len(auto_corr) // 2:]  # only use positives
+        if len(self.data) < 300:
+            raise ValueError("Not enough samples to reliably detect periodicity.")
 
-        # first try to find them with very high height, then go down
-        for height_percent, min_distance in ((0.8, 50), (0.6, 100), (0.4, 200)):
-            peaks, _ = find_peaks(
-                auto_corr,
-                height=height_percent * np.max(auto_corr),
-                distance=min(min_distance, len(self_data) // 10)) # TODO
-            if len(peaks) > 2:
+        # Remove linear trend
+        detrended = detrend(self.data)
+
+        # Normalized autocorrelation (positive lags only)
+        auto_corr = correlate(detrended, detrended, mode='full')
+        auto_corr = auto_corr[len(auto_corr) // 2:]
+        auto_corr = auto_corr / (auto_corr[0] + 1e-12)  # normalize
+
+        # Adaptive minimum lag (prevents picking noise as period)
+        min_lag = max(8, len(self.data) // 80)
+
+        # Find candidate periods
+        peaks, _ = find_peaks(
+            auto_corr[min_lag:],
+            height=0.28,  # a bit higher than before
+            prominence=0.18,
+            distance=min_lag // 3
+        )
+
+        if len(peaks) == 0:
+            raise ValueError("No significant periodic component detected.")
+
+        candidate_periods = np.sort(peaks + min_lag)  # <-- sort smallest first!
+
+        # Evaluate from shortest to longest
+        best_period = None
+        best_rel_var = np.inf
+        best_n_cycles = 0
+
+        for period in candidate_periods[:12]:  # limit to first 12 promising ones
+            n_cycles = len(self.data) // period
+            if n_cycles < 3:
+                continue
+
+            trimmed = self.data[:n_cycles * period]
+            cycles = trimmed.reshape((n_cycles, period))
+
+            # Relative variation across cycles (very robust metric)
+            cycle_std_mean = np.mean(np.std(cycles, axis=0))
+            p2p = np.ptp(np.mean(cycles, axis=0)) + 1e-9
+            rel_var = cycle_std_mean / p2p
+
+            # 22% is a sweet spot for real oscilloscope data (noise + small jitter)
+            if rel_var < 0.22:
+                # Found a good short period → take it immediately!
+                best_period = period
+                best_rel_var = rel_var
+                best_n_cycles = n_cycles
                 break
 
-        if len(peaks) < 2:
-            raise ValueError('no peaks found')
+            # Keep track of the overall best in case none is below threshold
+            if rel_var < best_rel_var:
+                best_rel_var = rel_var
+                best_period = period
+                best_n_cycles = n_cycles
 
-        periodic_samples = peaks[1] - peaks[0]  # TODO should we consider other peaks too?
+        if best_period is None:
+            raise ValueError("Could not find a consistent periodic pattern.")
 
-        # extract periodic part
-        n_complete_cycles = len(self_data) // periodic_samples
-
-        if n_complete_cycles < 2:
-            raise ValueError("to less data to determine periodic signal")
-
-        # Only take complete cycles and pack them into the matrix
-        trimmed = self_data[:n_complete_cycles * periodic_samples]
-        cycles = trimmed.reshape((n_complete_cycles, periodic_samples))
-
-        # TODO calc the error between the different cycles (needs to be a specific value)
-
-        # Average all cycles → “clean average cycle”
+        # Build the clean average cycle
+        trimmed = self.data[:best_n_cycles * best_period]
+        cycles = trimmed.reshape((best_n_cycles, best_period))
         mean_cycle = np.mean(cycles, axis=0)
 
         return CustomPeriodicWaveform(
             data=mean_cycle,
-            frequency_hz=float(1 / (self._delta_time_sec * len(mean_cycle))),
+            frequency_hz=float(1 / (self._delta_time_sec * best_period)),
             amplitude_vpp=float(self._multiplier_amplitude_volt * 2),
             offset_vdc=self._offset_vdc,
             phase=0
