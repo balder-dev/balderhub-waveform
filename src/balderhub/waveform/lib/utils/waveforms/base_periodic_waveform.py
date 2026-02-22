@@ -65,7 +65,7 @@ class BasePeriodicWaveform(AbstractWaveform, ABC):
         split_at = int(len(self.data) * (self.phase % (2 * np.pi)) / (2 * np.pi))
         phase_cleaned_raw_data = np.concatenate((self.data[split_at:], self.data[:split_at]))
 
-        return phase_cleaned_raw_data * float(self._amplitude_vpp) / 2 + self._offset_vdc
+        return phase_cleaned_raw_data * float(self._amplitude_vpp) / 2 - self._offset_vdc
 
     def get_resampled_version(self, interval_sec: float) -> BasePeriodicWaveform:
         # pylint: disable-next=import-outside-toplevel
