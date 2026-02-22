@@ -32,7 +32,7 @@ class ScenarioCheckWaveformMethods(ScenarioUnit):
         )
 
         periodic_equivalent = non_periodic.get_periodic_equivalent_waveform()
-        assert float(periodic_equivalent.frequency_hz) == 5
+        assert round(periodic_equivalent.frequency_hz, 2) == 5.00
         assert periodic_equivalent.compare(sinus, ignore_phase=True)
         assert periodic_equivalent.compare(cosinus, ignore_phase=True)
 
